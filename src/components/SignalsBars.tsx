@@ -78,6 +78,9 @@ export default function SignalsBars({ signals }: SignalsBarsProps) {
                   <span className="text-sm font-medium text-[var(--text-primary)]">
                     {signal.city} {signal.threshold_temp}
                   </span>
+                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+                    {new Date(signal.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
                 </div>
                 <span className={`text-sm font-bold ${isPositive ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
                   {formatEdge(signal.edge)} edge

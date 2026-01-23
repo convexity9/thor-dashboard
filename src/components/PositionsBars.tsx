@@ -96,10 +96,10 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
                   <span className="text-sm font-medium text-[var(--text-primary)]">
                     {position.city} {position.threshold_temp}
                   </span>
+                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+                    {new Date(position.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
                 </div>
-                <span className="text-xs text-[var(--text-secondary)]">
-                  {position.target_date}
-                </span>
               </div>
               {/* Ticker link */}
               <a
