@@ -53,9 +53,6 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
 
       <div className="space-y-3">
         {positions.map((position) => {
-          const pnl = position.unrealized_pnl ?? 0;
-          const isProfitable = pnl >= 0;
-
           return (
             <div
               key={position.id}
@@ -100,19 +97,35 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
                   <p className="text-[var(--text-primary)] font-medium">{formatPrice(position.entry_price)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-secondary)]">Current</p>
-                  <p className="text-[var(--text-primary)] font-medium">{formatPrice(position.current_price)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-[var(--text-secondary)]">Edge</p>
-                  <p className="text-[var(--blue)] font-medium">
-                    {position.edge_at_entry >= 0 ? '+' : ''}{(position.edge_at_entry * 100).toFixed(1)}%
+                  <p className="text-xs text-[var(--text-secondary)]">Market Now</p>
+                  <p className={`font-medium ${
+                    position.current_price !== null
+                      ? position.direction === 'SELL'
+                        ? position.current_price < position.entry_price ? 'text-[var(--green)]' : 'text-[var(--red)]'
+                        : position.current_price > position.entry_price ? 'text-[var(--green)]' : 'text-[var(--red)]'
+                      : 'text-[var(--text-primary)]'
+                  }`}>
+                    {formatPrice(position.current_price)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-secondary)]">P&L</p>
-                  <p className={`font-medium ${isProfitable ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
-                    {formatPnL(pnl)}
+                  <p className="text-xs text-[var(--text-secondary)]">If Win</p>
+                  <p className="text-[var(--green)] font-medium">
+                    +{formatCurrency(
+                      position.direction === 'SELL'
+                        ? position.entry_price * position.contracts
+                        : (1 - position.entry_price) * position.contracts
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--text-secondary)]">If Lose</p>
+                  <p className="text-[var(--red)] font-medium">
+                    -{formatCurrency(
+                      position.direction === 'SELL'
+                        ? (1 - position.entry_price) * position.contracts
+                        : position.entry_price * position.contracts
+                    )}
                   </p>
                 </div>
               </div>
