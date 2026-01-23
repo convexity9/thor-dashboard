@@ -26,7 +26,9 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
   };
 
   const getKalshiUrl = (ticker: string) => {
-    return `https://kalshi.com/markets/${ticker.toLowerCase()}`;
+    // Extract event ticker (e.g., KXHIGHNY from KXHIGHNY-26JAN24-B18.5)
+    const eventTicker = ticker.split('-')[0].toLowerCase();
+    return `https://kalshi.com/markets/${eventTicker}`;
   };
 
   // Empty state
