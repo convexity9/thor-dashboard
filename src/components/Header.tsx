@@ -5,9 +5,10 @@ import { SystemStatus } from '@/lib/supabase';
 interface HeaderProps {
   status: SystemStatus | null;
   onRefresh: () => void;
+  isRefreshing?: boolean;
 }
 
-export default function Header({ status, onRefresh }: HeaderProps) {
+export default function Header({ status, onRefresh, isRefreshing = false }: HeaderProps) {
   const formatTime = (timestamp: string | null) => {
     if (!timestamp) return 'Never';
     const date = new Date(timestamp);
@@ -51,10 +52,12 @@ export default function Header({ status, onRefresh }: HeaderProps) {
 
             {/* Refresh Button */}
             <button
+              type="button"
               onClick={onRefresh}
-              className="rounded bg-[var(--bg-hover)] px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors"
+              disabled={isRefreshing}
+              className="rounded bg-[var(--bg-hover)] px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Refresh
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
         </div>

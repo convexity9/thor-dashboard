@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [balanceHistory, setBalanceHistory] = useState<{ timestamp: string; balance: number }[]>([]);
   const [pnlHistory, setPnlHistory] = useState<PnLDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
@@ -102,7 +103,13 @@ export default function Dashboard() {
       setError('Failed to fetch data from Supabase');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
   };
 
   useEffect(() => {
@@ -198,7 +205,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
-      <Header status={status} onRefresh={fetchData} />
+      <Header status={status} onRefresh={handleRefresh} isRefreshing={refreshing} />
 
       <main className="mx-auto max-w-7xl px-6 py-6">
         {error && (
