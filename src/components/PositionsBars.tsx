@@ -30,6 +30,14 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
     return `https://kalshi.com/markets/${eventTicker}`;
   };
 
+  // Calculate win probability (inverted for SELL positions)
+  const getWinProb = (position: Position): number | null => {
+    if (position.model_prob === null) return null;
+    return position.direction === 'SELL'
+      ? 1 - position.model_prob
+      : position.model_prob;
+  };
+
   // Calculate totals
   const totalIfWin = positions.reduce((sum, p) => {
     return sum + (p.direction === 'SELL'
@@ -43,34 +51,34 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
       : p.entry_price * p.contracts);
   }, 0);
 
-  // Calculate model-based expected value
-  // For each position: expected = prob * win_amount - (1-prob) * loss_amount
+  // Calculate model-based expected value using WIN probability
+  // For each position: expected = winProb * win_amount - (1-winProb) * loss_amount
   const positionsWithProb = positions.filter(p => p.model_prob !== null);
 
   const expectedPnL = positionsWithProb.reduce((sum, p) => {
-    const prob = p.model_prob!;
+    const winProb = getWinProb(p)!;
     const winAmount = p.direction === 'SELL'
       ? p.entry_price * p.contracts
       : (1 - p.entry_price) * p.contracts;
     const loseAmount = p.direction === 'SELL'
       ? (1 - p.entry_price) * p.contracts
       : p.entry_price * p.contracts;
-    return sum + (prob * winAmount) - ((1 - prob) * loseAmount);
+    return sum + (winProb * winAmount) - ((1 - winProb) * loseAmount);
   }, 0);
 
-  // Average model probability (weighted by position size)
+  // Average WIN probability (weighted by position size)
   const totalPositionValue = positionsWithProb.reduce((sum, p) =>
     sum + p.entry_price * p.contracts, 0);
 
-  const weightedAvgProb = totalPositionValue > 0
+  const weightedAvgWinProb = totalPositionValue > 0
     ? positionsWithProb.reduce((sum, p) => {
         const weight = (p.entry_price * p.contracts) / totalPositionValue;
-        return sum + (p.model_prob! * weight);
+        return sum + (getWinProb(p)! * weight);
       }, 0)
     : null;
 
-  // Expected wins (sum of probabilities)
-  const expectedWins = positionsWithProb.reduce((sum, p) => sum + p.model_prob!, 0);
+  // Expected wins (sum of win probabilities)
+  const expectedWins = positionsWithProb.reduce((sum, p) => sum + getWinProb(p)!, 0);
 
   // Empty state
   if (positions.length === 0) {
@@ -96,10 +104,10 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
       <div className="grid grid-cols-2 gap-4 mb-4 pb-3 border-b border-[var(--border)]">
         {/* Model expectations */}
         <div className="flex gap-4">
-          {weightedAvgProb !== null && (
+          {weightedAvgWinProb !== null && (
             <div>
-              <p className="text-xs text-[var(--text-secondary)]">Avg Model Prob</p>
-              <p className="text-[var(--text-primary)] font-bold">{formatProb(weightedAvgProb)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Avg Win Prob</p>
+              <p className="text-[var(--text-primary)] font-bold">{formatProb(weightedAvgWinProb)}</p>
             </div>
           )}
           {positionsWithProb.length > 0 && (
@@ -154,14 +162,14 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
                     {new Date(position.target_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
                 </div>
-                {/* Model probability badge */}
+                {/* Win probability badge */}
                 {position.model_prob !== null && (
                   <span className={`text-sm font-bold ${
-                    position.model_prob >= 0.7 ? 'text-[var(--green)]' :
-                    position.model_prob >= 0.5 ? 'text-[var(--text-primary)]' :
+                    getWinProb(position)! >= 0.7 ? 'text-[var(--green)]' :
+                    getWinProb(position)! >= 0.5 ? 'text-[var(--text-primary)]' :
                     'text-[var(--red)]'
                   }`}>
-                    {formatProb(position.model_prob)} model
+                    {formatProb(getWinProb(position))} win
                   </span>
                 )}
               </div>
