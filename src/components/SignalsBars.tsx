@@ -81,19 +81,19 @@ export default function SignalsBars({ signals }: SignalsBarsProps) {
               {/* Bottom row: Key metrics */}
               <div className="grid grid-cols-4 gap-4 text-sm">
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">Market</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Market</p>
                   <p className="text-[var(--text-primary)] font-medium">{formatPrice(signal.market_price)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">Model</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Model</p>
                   <p className="text-[var(--text-primary)] font-medium">{formatProb(signal.blended_prob)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">GFS</p>
+                  <p className="text-xs text-[var(--text-secondary)]">GFS</p>
                   <p className="text-[var(--text-primary)] font-medium">{formatProb(signal.gfs_prob)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">ECMWF</p>
+                  <p className="text-xs text-[var(--text-secondary)]">ECMWF</p>
                   <p className="text-[var(--text-primary)] font-medium">{formatProb(signal.ecmwf_prob)}</p>
                 </div>
               </div>

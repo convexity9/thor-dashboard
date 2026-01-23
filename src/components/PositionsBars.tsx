@@ -77,19 +77,19 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
               {/* Bottom row: Key metrics */}
               <div className="grid grid-cols-4 gap-4 text-sm">
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">Contracts</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Contracts</p>
                   <p className="text-[var(--text-primary)] font-medium">{position.contracts}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">Entry</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Entry</p>
                   <p className="text-[var(--text-primary)] font-medium">{formatPrice(position.entry_price)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">Current</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Current</p>
                   <p className="text-[var(--text-primary)] font-medium">{formatPrice(position.current_price)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-muted)]">Unrealized P&L</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Unrealized P&L</p>
                   <p className={`font-medium ${isProfitable ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
                     {formatPnL(pnl)}
                   </p>
