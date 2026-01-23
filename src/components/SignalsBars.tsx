@@ -79,7 +79,7 @@ export default function SignalsBars({ signals }: SignalsBarsProps) {
                     {signal.city} {signal.threshold_temp}
                   </span>
                   <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)]">
-                    {new Date(signal.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {new Date(signal.target_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
                 </div>
                 <span className={`text-sm font-bold ${isPositive ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
