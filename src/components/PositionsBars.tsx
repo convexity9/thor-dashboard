@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Position } from '@/lib/supabase';
 
 interface PositionsBarsProps {
@@ -8,8 +7,6 @@ interface PositionsBarsProps {
 }
 
 export default function PositionsBars({ positions }: PositionsBarsProps) {
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -18,27 +15,14 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
     }).format(value);
   };
 
-  const formatEdge = (edge: number) => {
-    const sign = edge >= 0 ? '+' : '';
-    return `${sign}${(edge * 100).toFixed(1)}%`;
+  const formatPrice = (value: number | null) => {
+    if (value === null) return '—';
+    return `$${value.toFixed(2)}`;
   };
 
-  // Determine if position is expected to profit
-  // For BUY: positive edge = good (model says underpriced)
-  // For SELL: negative edge = good (model says overpriced)
-  const isPositionFavorable = (position: Position) => {
-    if (position.direction === 'BUY') {
-      return position.edge_at_entry > 0;
-    } else {
-      return position.edge_at_entry < 0;
-    }
-  };
-
-  // Max edge for bar scaling
-  const maxEdge = Math.max(...positions.map(p => Math.abs(p.edge_at_entry)), 0.2);
-
-  const toggleExpand = (id: number) => {
-    setExpandedId(expandedId === id ? null : id);
+  const formatPnL = (value: number) => {
+    const sign = value >= 0 ? '+' : '';
+    return `${sign}${formatCurrency(value)}`;
   };
 
   // Empty state
@@ -63,60 +47,54 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
 
       <div className="space-y-3">
         {positions.map((position) => {
-          const favorable = isPositionFavorable(position);
-          const barWidth = (Math.abs(position.edge_at_entry) / maxEdge) * 100;
-          const isExpanded = expandedId === position.id;
+          const pnl = position.unrealized_pnl ?? 0;
+          const isProfitable = pnl >= 0;
 
           return (
-            <div key={position.id}>
-              <button
-                onClick={() => toggleExpand(position.id)}
-                className="w-full text-left hover:bg-[var(--bg-hover)] rounded-lg p-2 -m-2 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  {/* Contract name and direction badge */}
-                  <div className="flex items-center gap-2 min-w-[180px]">
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                      position.direction === 'BUY'
-                        ? 'bg-[var(--green)]/20 text-[var(--green)]'
-                        : 'bg-[var(--red)]/20 text-[var(--red)]'
-                    }`}>
-                      {position.direction}
-                    </span>
-                    <span className="text-sm text-[var(--text-primary)] truncate">
-                      {position.city} {position.threshold_temp}
-                    </span>
-                  </div>
-
-                  {/* Bar */}
-                  <div className="flex-1 h-4 bg-[var(--bg-hover)] rounded overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${
-                        favorable ? 'bg-[var(--green)]' : 'bg-[var(--red)]'
-                      }`}
-                      style={{ width: `${barWidth}%` }}
-                    />
-                  </div>
-
-                  {/* Edge percentage */}
-                  <span className={`text-sm font-medium min-w-[60px] text-right ${
-                    favorable ? 'text-[var(--green)]' : 'text-[var(--red)]'
+            <div
+              key={position.id}
+              className="rounded-lg bg-[var(--bg-hover)] p-3"
+            >
+              {/* Top row: Contract name + Direction badge */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                    position.direction === 'BUY'
+                      ? 'bg-[var(--green)]/20 text-[var(--green)]'
+                      : 'bg-[var(--red)]/20 text-[var(--red)]'
                   }`}>
-                    {formatEdge(position.edge_at_entry)}
+                    {position.direction}
+                  </span>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    {position.city} {position.threshold_temp}
                   </span>
                 </div>
-              </button>
+                <span className="text-xs text-[var(--text-muted)]">
+                  {position.target_date}
+                </span>
+              </div>
 
-              {/* Expanded details */}
-              {isExpanded && (
-                <div className="mt-2 ml-2 pl-4 border-l-2 border-[var(--border)] text-sm text-[var(--text-secondary)] space-y-1">
-                  <p><span className="text-[var(--text-muted)]">Ticker:</span> {position.kalshi_ticker}</p>
-                  <p><span className="text-[var(--text-muted)]">Contracts:</span> {position.contracts}</p>
-                  <p><span className="text-[var(--text-muted)]">Entry Price:</span> {formatCurrency(position.entry_price)}</p>
-                  <p><span className="text-[var(--text-muted)]">Target Date:</span> {position.target_date}</p>
-                  <p><span className="text-[var(--text-muted)]">Opened:</span> {new Date(position.opened_at).toLocaleString()}</p>
+              {/* Bottom row: Key metrics */}
+              <div className="grid grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Contracts</p>
+                  <p className="text-[var(--text-primary)] font-medium">{position.contracts}</p>
                 </div>
-              )}
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Entry</p>
+                  <p className="text-[var(--text-primary)] font-medium">{formatPrice(position.entry_price)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Current</p>
+                  <p className="text-[var(--text-primary)] font-medium">{formatPrice(position.current_price)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Unrealized P&L</p>
+                  <p className={`font-medium ${isProfitable ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
+                    {formatPnL(pnl)}
+                  </p>
+                </div>
+              </div>
             </div>
           );
         })}

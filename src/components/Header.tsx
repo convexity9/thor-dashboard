@@ -11,12 +11,12 @@ interface HeaderProps {
 export default function Header({ status, onRefresh, isRefreshing = false }: HeaderProps) {
   const formatTime = (timestamp: string | null) => {
     if (!timestamp) return 'Never';
-    // Supabase timestamps are UTC - ensure proper parsing
-    let date = new Date(timestamp);
-    // If timestamp doesn't include 'Z' or timezone, treat as UTC
-    if (!timestamp.includes('Z') && !timestamp.includes('+')) {
-      date = new Date(timestamp + 'Z');
+    // Supabase timestamps are UTC - normalize format and ensure proper parsing
+    let ts = timestamp.replace(' ', 'T'); // Handle "2025-01-23 15:20:00" format
+    if (!ts.includes('Z') && !ts.includes('+') && !ts.includes('-', 10)) {
+      ts = ts + 'Z'; // Append Z to treat as UTC
     }
+    const date = new Date(ts);
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
