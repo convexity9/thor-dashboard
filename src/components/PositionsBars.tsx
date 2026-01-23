@@ -20,13 +20,12 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
     return `$${value.toFixed(2)}`;
   };
 
-  const formatPnL = (value: number) => {
-    const sign = value >= 0 ? '+' : '';
-    return `${sign}${formatCurrency(value)}`;
+  const formatProb = (value: number | null) => {
+    if (value === null) return '—';
+    return `${(value * 100).toFixed(0)}%`;
   };
 
   const getKalshiUrl = (ticker: string) => {
-    // Extract event ticker (e.g., KXHIGHNY from KXHIGHNY-26JAN24-B18.5)
     const eventTicker = ticker.split('-')[0].toLowerCase();
     return `https://kalshi.com/markets/${eventTicker}`;
   };
@@ -43,6 +42,35 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
       ? (1 - p.entry_price) * p.contracts
       : p.entry_price * p.contracts);
   }, 0);
+
+  // Calculate model-based expected value
+  // For each position: expected = prob * win_amount - (1-prob) * loss_amount
+  const positionsWithProb = positions.filter(p => p.model_prob !== null);
+
+  const expectedPnL = positionsWithProb.reduce((sum, p) => {
+    const prob = p.model_prob!;
+    const winAmount = p.direction === 'SELL'
+      ? p.entry_price * p.contracts
+      : (1 - p.entry_price) * p.contracts;
+    const loseAmount = p.direction === 'SELL'
+      ? (1 - p.entry_price) * p.contracts
+      : p.entry_price * p.contracts;
+    return sum + (prob * winAmount) - ((1 - prob) * loseAmount);
+  }, 0);
+
+  // Average model probability (weighted by position size)
+  const totalPositionValue = positionsWithProb.reduce((sum, p) =>
+    sum + p.entry_price * p.contracts, 0);
+
+  const weightedAvgProb = totalPositionValue > 0
+    ? positionsWithProb.reduce((sum, p) => {
+        const weight = (p.entry_price * p.contracts) / totalPositionValue;
+        return sum + (p.model_prob! * weight);
+      }, 0)
+    : null;
+
+  // Expected wins (sum of probabilities)
+  const expectedWins = positionsWithProb.reduce((sum, p) => sum + p.model_prob!, 0);
 
   // Empty state
   if (positions.length === 0) {
@@ -65,14 +93,40 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
       </p>
 
       {/* Summary row */}
-      <div className="flex justify-end gap-6 mb-4 pb-3 border-b border-[var(--border)]">
-        <div className="text-right">
-          <p className="text-xs text-[var(--text-secondary)]">Total If All Win</p>
-          <p className="text-[var(--green)] font-bold">+{formatCurrency(totalIfWin)}</p>
+      <div className="grid grid-cols-2 gap-4 mb-4 pb-3 border-b border-[var(--border)]">
+        {/* Model expectations */}
+        <div className="flex gap-4">
+          {weightedAvgProb !== null && (
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Avg Model Prob</p>
+              <p className="text-[var(--text-primary)] font-bold">{formatProb(weightedAvgProb)}</p>
+            </div>
+          )}
+          {positionsWithProb.length > 0 && (
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Expected Wins</p>
+              <p className="text-[var(--text-primary)] font-bold">{expectedWins.toFixed(1)} / {positions.length}</p>
+            </div>
+          )}
+          {positionsWithProb.length > 0 && (
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Expected P&L</p>
+              <p className={`font-bold ${expectedPnL >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
+                {expectedPnL >= 0 ? '+' : ''}{formatCurrency(expectedPnL)}
+              </p>
+            </div>
+          )}
         </div>
-        <div className="text-right">
-          <p className="text-xs text-[var(--text-secondary)]">Total If All Lose</p>
-          <p className="text-[var(--red)] font-bold">-{formatCurrency(totalIfLose)}</p>
+        {/* Outcome scenarios */}
+        <div className="flex justify-end gap-4">
+          <div className="text-right">
+            <p className="text-xs text-[var(--text-secondary)]">If All Win</p>
+            <p className="text-[var(--green)] font-bold">+{formatCurrency(totalIfWin)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-[var(--text-secondary)]">If All Lose</p>
+            <p className="text-[var(--red)] font-bold">-{formatCurrency(totalIfLose)}</p>
+          </div>
         </div>
       </div>
 
@@ -100,6 +154,16 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
                     {new Date(position.target_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
                 </div>
+                {/* Model probability badge */}
+                {position.model_prob !== null && (
+                  <span className={`text-sm font-bold ${
+                    position.model_prob >= 0.7 ? 'text-[var(--green)]' :
+                    position.model_prob >= 0.5 ? 'text-[var(--text-primary)]' :
+                    'text-[var(--red)]'
+                  }`}>
+                    {formatProb(position.model_prob)} model
+                  </span>
+                )}
               </div>
               {/* Ticker link */}
               <a

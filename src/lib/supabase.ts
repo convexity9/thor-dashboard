@@ -31,6 +31,7 @@ export interface Position {
   entry_price: number;
   current_price: number | null;
   edge_at_entry: number;
+  model_prob: number | null;
   unrealized_pnl: number;
   opened_at: string;
   status: 'open' | 'closed';
