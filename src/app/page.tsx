@@ -1,17 +1,31 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, AccountSnapshot, SystemStatus, Signal, Position } from '@/lib/supabase';
-import StatusCard from '@/components/StatusCard';
-import AccountCard from '@/components/AccountCard';
-import SignalsTable from '@/components/SignalsTable';
-import PositionsTable from '@/components/PositionsTable';
+import { supabase, AccountSnapshot, SystemStatus, Signal, Position, Trade } from '@/lib/supabase';
+import Header from '@/components/Header';
+import BalanceCard from '@/components/BalanceCard';
+import WinRateCard from '@/components/WinRateCard';
+import ProgressCard from '@/components/ProgressCard';
+import ExposureCard from '@/components/ExposureCard';
+import PnLChart from '@/components/PnLChart';
+import PositionsBars from '@/components/PositionsBars';
+import SignalsBars from '@/components/SignalsBars';
+import ModelPerformance from '@/components/ModelPerformance';
+
+interface PnLDataPoint {
+  timestamp: string;
+  pnl_total: number;
+  balance: number;
+}
 
 export default function Dashboard() {
   const [account, setAccount] = useState<AccountSnapshot | null>(null);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [balanceHistory, setBalanceHistory] = useState<{ timestamp: string; balance: number }[]>([]);
+  const [pnlHistory, setPnlHistory] = useState<PnLDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +42,21 @@ export default function Dashboard() {
       if (accountError && accountError.code !== 'PGRST116') throw accountError;
       setAccount(accountData);
 
+      // Fetch balance history for sparkline (last 30 days)
+      const { data: historyData, error: historyError } = await supabase
+        .from('account_snapshots')
+        .select('timestamp, balance, pnl_total')
+        .order('timestamp', { ascending: true })
+        .limit(100);
+
+      if (historyError) throw historyError;
+      setBalanceHistory(historyData?.map(h => ({ timestamp: h.timestamp, balance: h.balance })) || []);
+      setPnlHistory(historyData?.map(h => ({
+        timestamp: h.timestamp,
+        pnl_total: h.pnl_total,
+        balance: h.balance,
+      })) || []);
+
       // Fetch system status
       const { data: statusData, error: statusError } = await supabase
         .from('system_status')
@@ -38,13 +67,12 @@ export default function Dashboard() {
       if (statusError && statusError.code !== 'PGRST116') throw statusError;
       setStatus(statusData);
 
-      // Fetch recent signals (tradeable only, last 20)
+      // Fetch recent signals (tradeable only, last 50)
       const { data: signalsData, error: signalsError } = await supabase
         .from('signals')
         .select('*')
-        .in('action', ['BUY', 'SELL'])
         .order('timestamp', { ascending: false })
-        .limit(20);
+        .limit(50);
 
       if (signalsError) throw signalsError;
       setSignals(signalsData || []);
@@ -58,6 +86,15 @@ export default function Dashboard() {
 
       if (positionsError) throw positionsError;
       setPositions(positionsData || []);
+
+      // Fetch all trades for model performance
+      const { data: tradesData, error: tradesError } = await supabase
+        .from('trades')
+        .select('*')
+        .order('closed_at', { ascending: false });
+
+      if (tradesError) throw tradesError;
+      setTrades(tradesData || []);
 
       setError(null);
     } catch (err) {
@@ -79,6 +116,15 @@ export default function Dashboard() {
         { event: 'INSERT', schema: 'public', table: 'account_snapshots' },
         (payload) => {
           setAccount(payload.new as AccountSnapshot);
+          setBalanceHistory(prev => [...prev, {
+            timestamp: (payload.new as AccountSnapshot).timestamp,
+            balance: (payload.new as AccountSnapshot).balance,
+          }]);
+          setPnlHistory(prev => [...prev, {
+            timestamp: (payload.new as AccountSnapshot).timestamp,
+            pnl_total: (payload.new as AccountSnapshot).pnl_total,
+            balance: (payload.new as AccountSnapshot).balance,
+          }]);
         }
       )
       .subscribe();
@@ -100,7 +146,6 @@ export default function Dashboard() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'signals' },
         () => {
-          // Refetch signals to get properly ordered list
           fetchData();
         }
       )
@@ -112,7 +157,17 @@ export default function Dashboard() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'positions' },
         () => {
-          // Refetch positions
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    const tradesChannel = supabase
+      .channel('trades_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'trades' },
+        () => {
           fetchData();
         }
       )
@@ -124,60 +179,65 @@ export default function Dashboard() {
       supabase.removeChannel(statusChannel);
       supabase.removeChannel(signalsChannel);
       supabase.removeChannel(positionsChannel);
+      supabase.removeChannel(tradesChannel);
     };
   }, []);
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mx-auto" />
-          <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading dashboard...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--blue)] border-t-transparent mx-auto" />
+          <p className="mt-4 text-[var(--text-secondary)]">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Thor Dashboard</h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Algorithmic Prediction Market Trading</p>
-          </div>
-          <button
-            onClick={fetchData}
-            className="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          >
-            Refresh
-          </button>
-        </div>
-      </header>
+  const hasResolvedTrades = trades.length > 0;
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+  return (
+    <div className="min-h-screen bg-[var(--bg-primary)]">
+      <Header status={status} onRefresh={fetchData} />
+
+      <main className="mx-auto max-w-7xl px-6 py-6">
         {error && (
-          <div className="mb-6 rounded-lg bg-red-100 p-4 text-red-800 dark:bg-red-900/30 dark:text-red-200">
+          <div className="mb-6 rounded-lg bg-[var(--red)]/20 border border-[var(--red)]/30 p-4 text-[var(--red)]">
             {error}
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <AccountCard account={account} />
-          <StatusCard status={status} />
+        {/* Top Row: Balance, Win Rate */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <BalanceCard account={account} balanceHistory={balanceHistory} />
+          <WinRateCard status={status} trades={trades} />
         </div>
 
-        <div className="mt-6">
-          <PositionsTable positions={positions} />
+        {/* Second Row: Progress, Exposure */}
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <ProgressCard status={status} />
+          <ExposureCard account={account} />
         </div>
 
+        {/* P&L Chart */}
         <div className="mt-6">
-          <SignalsTable signals={signals} />
+          <PnLChart data={pnlHistory} hasResolvedTrades={hasResolvedTrades} />
+        </div>
+
+        {/* Positions and Signals */}
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <PositionsBars positions={positions} />
+          <SignalsBars signals={signals} />
+        </div>
+
+        {/* Model Performance */}
+        <div className="mt-6">
+          <ModelPerformance trades={trades} />
         </div>
       </main>
 
-      <footer className="border-t border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-7xl text-center text-sm text-zinc-500 dark:text-zinc-400">
+      <footer className="border-t border-[var(--border)] bg-[var(--bg-card)] px-6 py-4 mt-6">
+        <div className="mx-auto max-w-7xl text-center text-sm text-[var(--text-muted)]">
           Thor v1.1 - Weather Prediction Market Trading System
         </div>
       </footer>
