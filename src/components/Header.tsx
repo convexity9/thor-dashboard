@@ -11,7 +11,12 @@ interface HeaderProps {
 export default function Header({ status, onRefresh, isRefreshing = false }: HeaderProps) {
   const formatTime = (timestamp: string | null) => {
     if (!timestamp) return 'Never';
-    const date = new Date(timestamp);
+    // Supabase timestamps are UTC - ensure proper parsing
+    let date = new Date(timestamp);
+    // If timestamp doesn't include 'Z' or timezone, treat as UTC
+    if (!timestamp.includes('Z') && !timestamp.includes('+')) {
+      date = new Date(timestamp + 'Z');
+    }
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
