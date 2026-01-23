@@ -31,6 +31,19 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
     return `https://kalshi.com/markets/${eventTicker}`;
   };
 
+  // Calculate totals
+  const totalIfWin = positions.reduce((sum, p) => {
+    return sum + (p.direction === 'SELL'
+      ? p.entry_price * p.contracts
+      : (1 - p.entry_price) * p.contracts);
+  }, 0);
+
+  const totalIfLose = positions.reduce((sum, p) => {
+    return sum + (p.direction === 'SELL'
+      ? (1 - p.entry_price) * p.contracts
+      : p.entry_price * p.contracts);
+  }, 0);
+
   // Empty state
   if (positions.length === 0) {
     return (
@@ -50,6 +63,18 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
       <p className="text-sm text-[var(--text-secondary)] uppercase tracking-wide mb-4">
         Open Positions ({positions.length})
       </p>
+
+      {/* Summary row */}
+      <div className="flex justify-end gap-6 mb-4 pb-3 border-b border-[var(--border)]">
+        <div className="text-right">
+          <p className="text-xs text-[var(--text-secondary)]">Total If All Win</p>
+          <p className="text-[var(--green)] font-bold">+{formatCurrency(totalIfWin)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-[var(--text-secondary)]">Total If All Lose</p>
+          <p className="text-[var(--red)] font-bold">-{formatCurrency(totalIfLose)}</p>
+        </div>
+      </div>
 
       <div className="space-y-3">
         {positions.map((position) => {
