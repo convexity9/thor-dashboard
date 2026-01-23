@@ -30,6 +30,10 @@ export default function SignalsBars({ signals }: SignalsBarsProps) {
     return `$${price.toFixed(2)}`;
   };
 
+  const getKalshiUrl = (ticker: string) => {
+    return `https://kalshi.com/markets/${ticker.toLowerCase()}`;
+  };
+
   // Empty state
   if (todaysSignals.length === 0) {
     return (
@@ -60,7 +64,7 @@ export default function SignalsBars({ signals }: SignalsBarsProps) {
               className="rounded-lg bg-[var(--bg-hover)] p-3"
             >
               {/* Top row: Contract name + Action badge */}
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded font-bold ${
                     signal.action === 'BUY'
@@ -77,6 +81,15 @@ export default function SignalsBars({ signals }: SignalsBarsProps) {
                   {formatEdge(signal.edge)} edge
                 </span>
               </div>
+              {/* Ticker link */}
+              <a
+                href={getKalshiUrl(signal.kalshi_ticker)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[var(--blue)] hover:underline mb-2 inline-block"
+              >
+                {signal.kalshi_ticker} ↗
+              </a>
 
               {/* Bottom row: Key metrics */}
               <div className="grid grid-cols-4 gap-4 text-sm">

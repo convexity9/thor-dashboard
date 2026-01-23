@@ -25,6 +25,10 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
     return `${sign}${formatCurrency(value)}`;
   };
 
+  const getKalshiUrl = (ticker: string) => {
+    return `https://kalshi.com/markets/${ticker.toLowerCase()}`;
+  };
+
   // Empty state
   if (positions.length === 0) {
     return (
@@ -56,7 +60,7 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
               className="rounded-lg bg-[var(--bg-hover)] p-3"
             >
               {/* Top row: Contract name + Direction badge */}
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded font-bold ${
                     position.direction === 'BUY'
@@ -69,10 +73,19 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
                     {position.city} {position.threshold_temp}
                   </span>
                 </div>
-                <span className="text-xs text-[var(--text-muted)]">
+                <span className="text-xs text-[var(--text-secondary)]">
                   {position.target_date}
                 </span>
               </div>
+              {/* Ticker link */}
+              <a
+                href={getKalshiUrl(position.kalshi_ticker)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[var(--blue)] hover:underline mb-2 inline-block"
+              >
+                {position.kalshi_ticker} ↗
+              </a>
 
               {/* Bottom row: Key metrics */}
               <div className="grid grid-cols-5 gap-3 text-sm">
