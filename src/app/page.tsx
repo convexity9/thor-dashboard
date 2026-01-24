@@ -11,6 +11,7 @@ import PnLChart from '@/components/PnLChart';
 import PositionsBars from '@/components/PositionsBars';
 import SignalsBars from '@/components/SignalsBars';
 import ModelPerformance from '@/components/ModelPerformance';
+import CityForecasts from '@/components/CityForecasts';
 
 interface PnLDataPoint {
   timestamp: string;
@@ -235,6 +236,11 @@ export default function Dashboard() {
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <PositionsBars positions={positions} />
           <SignalsBars signals={signals} />
+        </div>
+
+        {/* City Forecasts */}
+        <div className="mt-6">
+          <CityForecasts />
         </div>
 
         {/* Model Performance */}
