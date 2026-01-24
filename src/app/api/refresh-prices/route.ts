@@ -8,7 +8,8 @@ let supabase: SupabaseClient | null = null;
 function getSupabase(): SupabaseClient {
   if (!supabase) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY;
+    // Use service key if available, otherwise fall back to anon key
+    const key = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key) {
       throw new Error('Supabase credentials not configured');
     }
