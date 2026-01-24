@@ -199,9 +199,11 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
                   <p className="text-xs text-[var(--text-secondary)]">Market Now</p>
                   <p className={`font-medium ${
                     position.current_price !== null
-                      ? position.direction === 'SELL'
-                        ? position.current_price < position.entry_price ? 'text-[var(--green)]' : 'text-[var(--red)]'
-                        : position.current_price > position.entry_price ? 'text-[var(--green)]' : 'text-[var(--red)]'
+                      ? position.current_price > position.entry_price
+                        ? 'text-[var(--green)]'  // Price up = profit
+                        : position.current_price < position.entry_price
+                          ? 'text-[var(--red)]'  // Price down = loss
+                          : 'text-[var(--text-primary)]'  // No change
                       : 'text-[var(--text-primary)]'
                   }`}>
                     {formatPrice(position.current_price)}
