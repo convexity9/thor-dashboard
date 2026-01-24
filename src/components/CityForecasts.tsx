@@ -124,7 +124,7 @@ export default function CityForecasts() {
             <tr className="border-b border-[var(--border)]">
               <th className="text-left py-2 px-2 text-[var(--text-secondary)] font-medium">City</th>
               <th className="text-center py-2 px-2 text-[var(--text-secondary)] font-medium">Most Likely High</th>
-              <th className="text-center py-2 px-2 text-[var(--text-secondary)] font-medium">Range (10-90%)</th>
+              <th className="text-center py-2 px-2 text-[var(--text-secondary)] font-medium">Uncertainty Band</th>
               <th className="text-right py-2 px-2 text-[var(--text-secondary)] font-medium">Updated</th>
             </tr>
           </thead>
