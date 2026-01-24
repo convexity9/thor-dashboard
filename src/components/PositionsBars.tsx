@@ -39,16 +39,15 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
   };
 
   // Calculate totals
+  // entry_price now correctly represents what we paid (YES price for BUY, NO price for SELL)
+  // If Win: contract pays $1, profit = $1 - entry_price
+  // If Lose: contract pays $0, loss = entry_price
   const totalIfWin = positions.reduce((sum, p) => {
-    return sum + (p.direction === 'SELL'
-      ? p.entry_price * p.contracts
-      : (1 - p.entry_price) * p.contracts);
+    return sum + (1 - p.entry_price) * p.contracts;
   }, 0);
 
   const totalIfLose = positions.reduce((sum, p) => {
-    return sum + (p.direction === 'SELL'
-      ? (1 - p.entry_price) * p.contracts
-      : p.entry_price * p.contracts);
+    return sum + p.entry_price * p.contracts;
   }, 0);
 
   // Calculate model-based expected value using WIN probability
@@ -57,12 +56,8 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
 
   const expectedPnL = positionsWithProb.reduce((sum, p) => {
     const winProb = getWinProb(p)!;
-    const winAmount = p.direction === 'SELL'
-      ? p.entry_price * p.contracts
-      : (1 - p.entry_price) * p.contracts;
-    const loseAmount = p.direction === 'SELL'
-      ? (1 - p.entry_price) * p.contracts
-      : p.entry_price * p.contracts;
+    const winAmount = (1 - p.entry_price) * p.contracts;
+    const loseAmount = p.entry_price * p.contracts;
     return sum + (winProb * winAmount) - ((1 - winProb) * loseAmount);
   }, 0);
 
@@ -128,6 +123,10 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
         {/* Outcome scenarios */}
         <div className="flex justify-end gap-4">
           <div className="text-right">
+            <p className="text-xs text-[var(--text-secondary)]">Total Allocated</p>
+            <p className="text-[var(--text-primary)] font-bold">{formatCurrency(totalIfLose)}</p>
+          </div>
+          <div className="text-right">
             <p className="text-xs text-[var(--text-secondary)]">If All Win</p>
             <p className="text-[var(--green)] font-bold">+{formatCurrency(totalIfWin)}</p>
           </div>
@@ -186,8 +185,11 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
               {/* Bottom row: Key metrics */}
               <div className="grid grid-cols-5 gap-3 text-sm">
                 <div>
-                  <p className="text-xs text-[var(--text-secondary)]">Contracts</p>
-                  <p className="text-[var(--text-primary)] font-medium">{position.contracts}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Allocated</p>
+                  <p className="text-[var(--text-primary)] font-medium">
+                    {formatCurrency(position.entry_price * position.contracts)}
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)]">{position.contracts.toLocaleString()} contracts</p>
                 </div>
                 <div>
                   <p className="text-xs text-[var(--text-secondary)]">Entry</p>
@@ -208,21 +210,13 @@ export default function PositionsBars({ positions }: PositionsBarsProps) {
                 <div>
                   <p className="text-xs text-[var(--text-secondary)]">If Win</p>
                   <p className="text-[var(--green)] font-medium">
-                    +{formatCurrency(
-                      position.direction === 'SELL'
-                        ? position.entry_price * position.contracts
-                        : (1 - position.entry_price) * position.contracts
-                    )}
+                    +{formatCurrency((1 - position.entry_price) * position.contracts)}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-[var(--text-secondary)]">If Lose</p>
                   <p className="text-[var(--red)] font-medium">
-                    -{formatCurrency(
-                      position.direction === 'SELL'
-                        ? (1 - position.entry_price) * position.contracts
-                        : position.entry_price * position.contracts
-                    )}
+                    -{formatCurrency(position.entry_price * position.contracts)}
                   </p>
                 </div>
               </div>
