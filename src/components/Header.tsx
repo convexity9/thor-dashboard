@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { SystemStatus } from '@/lib/supabase';
 
 interface HeaderProps {
@@ -9,6 +10,9 @@ interface HeaderProps {
 }
 
 export default function Header({ status, onRefresh, isRefreshing = false }: HeaderProps) {
+  const [timeAgo, setTimeAgo] = useState<string>('');
+  const [isStale, setIsStale] = useState(false);
+
   const formatTime = (timestamp: string | null) => {
     if (!timestamp) return 'Never';
     // Supabase timestamps are UTC - normalize format and ensure proper parsing
@@ -19,6 +23,41 @@ export default function Header({ status, onRefresh, isRefreshing = false }: Head
     const date = new Date(ts);
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
+
+  const getTimeAgo = (timestamp: string | null): string => {
+    if (!timestamp) return 'never';
+    let ts = timestamp.replace(' ', 'T');
+    if (!ts.includes('Z') && !ts.includes('+') && !ts.includes('-', 10)) {
+      ts = ts + 'Z';
+    }
+    const date = new Date(ts);
+    const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
+  // Update time ago every 30 seconds
+  useEffect(() => {
+    const updateTimeAgo = () => {
+      const ago = getTimeAgo(status?.updated_at || null);
+      setTimeAgo(ago);
+      // Consider data stale if older than 20 minutes
+      if (status?.updated_at) {
+        let ts = status.updated_at.replace(' ', 'T');
+        if (!ts.includes('Z') && !ts.includes('+') && !ts.includes('-', 10)) {
+          ts = ts + 'Z';
+        }
+        const mins = (Date.now() - new Date(ts).getTime()) / 60000;
+        setIsStale(mins > 20);
+      }
+    };
+    updateTimeAgo();
+    const interval = setInterval(updateTimeAgo, 30000);
+    return () => clearInterval(interval);
+  }, [status?.updated_at]);
 
   return (
     <>
@@ -50,10 +89,19 @@ export default function Header({ status, onRefresh, isRefreshing = false }: Head
               {status?.mode?.toUpperCase() || 'PAPER'}
             </span>
 
-            {/* Last Scan Time */}
-            <span className="text-sm text-[var(--text-secondary)]">
-              Last: {formatTime(status?.last_scan_time || null)}
-            </span>
+            {/* Data Freshness Indicator */}
+            <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${isStale ? 'bg-[var(--orange)] animate-pulse' : 'bg-[var(--green)]'}`} />
+                <span className={isStale ? 'text-[var(--orange)]' : 'text-[var(--text-secondary)]'}>
+                  {timeAgo || 'Loading...'}
+                </span>
+              </div>
+              <span className="text-[var(--text-muted)]">•</span>
+              <span className="text-[var(--text-secondary)]">
+                Next: {formatTime(status?.next_scan_time || null)}
+              </span>
+            </div>
 
             {/* Refresh Button */}
             <button
