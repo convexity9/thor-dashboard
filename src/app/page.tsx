@@ -12,6 +12,7 @@ import PositionsBars from '@/components/PositionsBars';
 import SignalsBars from '@/components/SignalsBars';
 import ModelPerformance from '@/components/ModelPerformance';
 import CityForecasts from '@/components/CityForecasts';
+import ForecastTracking from '@/components/ForecastTracking';
 
 interface PnLDataPoint {
   timestamp: string;
@@ -246,6 +247,11 @@ export default function Dashboard() {
         {/* Model Performance */}
         <div className="mt-6">
           <ModelPerformance trades={trades} />
+        </div>
+
+        {/* Forecast Tracking - NBM vs Settlement Analysis */}
+        <div className="mt-6">
+          <ForecastTracking />
         </div>
       </main>
 

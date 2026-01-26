@@ -98,3 +98,32 @@ export interface SystemStatus {
   win_rate: number | null;
   fill_rate: number | null;
 }
+
+export interface ForecastTracking {
+  id: number;
+  kalshi_ticker: string;
+  city: string;
+  target_date: string;
+  threshold_temp: string | null;
+  contract_type: string | null;
+  nbm_mean: number | null;
+  nbm_std: number | null;
+  nbm_mean_raw: number | null;
+  station_bias: number | null;
+  model_probability: number | null;
+  forecast_timestamp: string | null;
+  market_price_open: number | null;
+  bid_open: number | null;
+  ask_open: number | null;
+  spread_open: number | null;
+  market_open_timestamp: string | null;
+  market_price_close: number | null;
+  close_timestamp: string | null;
+  nws_cli_actual: number | null;
+  settlement_result: 'yes' | 'no' | null;
+  settled_at: string | null;
+  model_correct: boolean | null;
+  edge_at_open: number | null;
+  created_at: string;
+  updated_at: string;
+}
