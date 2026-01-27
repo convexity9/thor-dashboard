@@ -62,9 +62,17 @@ export default function CityForecasts() {
   }, []);
 
   async function fetchForecasts() {
+    // Calculate tomorrow's date in US Eastern timezone
+    const now = new Date();
+    const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const tomorrow = new Date(eastern);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
     const { data, error } = await supabase
       .from('city_forecasts')
       .select('*')
+      .eq('target_date', tomorrowStr)
       .order('city', { ascending: true });
 
     if (error) {
