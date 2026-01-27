@@ -62,23 +62,25 @@ export default function CityForecasts() {
   }, []);
 
   async function fetchForecasts() {
-    // Calculate tomorrow's date in US Eastern timezone
-    const now = new Date();
-    const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const tomorrow = new Date(eastern);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
+    // Get the most recent future forecast date from the database
+    // This avoids timezone calculation issues
     const { data, error } = await supabase
       .from('city_forecasts')
       .select('*')
-      .eq('target_date', tomorrowStr)
+      .gte('target_date', new Date().toISOString().split('T')[0])
+      .order('target_date', { ascending: true })
       .order('city', { ascending: true });
+
+    if (data && data.length > 0) {
+      // Filter to only show the earliest date (tomorrow's forecasts)
+      const earliestDate = data[0].target_date;
+      const filtered = data.filter(d => d.target_date === earliestDate);
+
+      setForecasts(filtered);
+    }
 
     if (error) {
       console.error('Error fetching forecasts:', error);
-    } else {
-      setForecasts(data || []);
     }
     setLoading(false);
   }
