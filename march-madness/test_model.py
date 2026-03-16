@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-from team_data import TOURNAMENT_TEAMS, HISTORICAL_MATCHUPS
+from team_data import TOURNAMENT_TEAMS, HISTORICAL_MATCHUPS, FIRST_FOUR
+from team_names import normalize_team_name, find_close_matches
 from model import (
     compute_team_features,
     compute_matchup_features,
@@ -25,21 +26,21 @@ from model import (
 
 
 def test_team_data_completeness():
-    """All 64 teams have required fields."""
+    """All 68 teams have required fields."""
     required_fields = [
         "seed", "adj_off", "adj_def", "adj_tempo", "sos", "wins",
         "efg_pct", "turnover_pct", "oreb_pct", "ft_rate",
         "opp_efg_pct", "opp_turnover_pct", "opp_oreb_pct", "opp_ft_rate",
         "barthag", "region",
     ]
-    assert len(TOURNAMENT_TEAMS) == 64, f"Expected 64 teams, got {len(TOURNAMENT_TEAMS)}"
+    assert len(TOURNAMENT_TEAMS) == 68, f"Expected 68 teams, got {len(TOURNAMENT_TEAMS)}"
     for team, stats in TOURNAMENT_TEAMS.items():
         for field in required_fields:
             assert field in stats, f"{team} missing field: {field}"
 
 
 def test_seeds_valid():
-    """Each region has seeds 1-16."""
+    """Each region has correct seed distribution (16 seeds + First Four extras)."""
     regions = {}
     for team, stats in TOURNAMENT_TEAMS.items():
         region = stats["region"]
@@ -49,9 +50,11 @@ def test_seeds_valid():
 
     assert len(regions) == 4, f"Expected 4 regions, got {len(regions)}"
     for region, seeds in regions.items():
-        assert sorted(seeds) == list(range(1, 17)), (
-            f"Region {region} has invalid seeds: {sorted(seeds)}"
-        )
+        # With First Four, some regions have 17 or 18 teams (extra 11 or 16 seeds)
+        assert len(seeds) >= 16, f"Region {region} has too few teams: {len(seeds)}"
+        # Every seed 1-16 should appear at least once
+        for s in range(1, 17):
+            assert s in seeds, f"Region {region} missing seed {s}"
 
 
 def test_stat_ranges():
@@ -139,10 +142,10 @@ def test_1_seed_beats_16_seed():
     model = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
     model.fit(X_scaled, y_aug)
 
-    prob = predict_matchup(model, scaler, "Houston", "SE Louisiana")
+    prob = predict_matchup(model, scaler, "Duke", "Siena")
     assert prob > 0.95, f"1 vs 16 probability too low: {prob:.4f}"
 
-    prob2 = predict_matchup(model, scaler, "Duke", "Norfolk St")
+    prob2 = predict_matchup(model, scaler, "Arizona", "LIU")
     assert prob2 > 0.95, f"1 vs 16 probability too low: {prob2:.4f}"
 
 
@@ -156,15 +159,15 @@ def test_higher_seed_generally_favored():
     model.fit(X_scaled, y_aug)
 
     # 2 vs 15
-    prob = predict_matchup(model, scaler, "Alabama", "Robert Morris")
+    prob = predict_matchup(model, scaler, "UConn", "Furman")
     assert prob > 0.85, f"2 vs 15 probability too low: {prob:.4f}"
 
     # 3 vs 14
-    prob = predict_matchup(model, scaler, "Tennessee", "Wofford")
+    prob = predict_matchup(model, scaler, "Michigan State", "North Dakota State")
     assert prob > 0.80, f"3 vs 14 probability too low: {prob:.4f}"
 
     # 4 vs 13
-    prob = predict_matchup(model, scaler, "Michigan", "High Point")
+    prob = predict_matchup(model, scaler, "Kansas", "Cal Baptist")
     assert prob > 0.75, f"4 vs 13 probability too low: {prob:.4f}"
 
 
@@ -177,7 +180,7 @@ def test_close_matchups_near_50_50():
     model = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
     model.fit(X_scaled, y_aug)
 
-    prob = predict_matchup(model, scaler, "Michigan St", "Drake")
+    prob = predict_matchup(model, scaler, "Ohio State", "TCU")
     assert 0.20 <= prob <= 0.80, f"8 vs 9 not close enough: {prob:.4f}"
 
 
@@ -190,12 +193,32 @@ def test_probabilities_sum_to_one():
     model = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
     model.fit(X_scaled, y_aug)
 
-    for team_a, team_b in [("Duke", "Houston"), ("Alabama", "Florida"), ("Oregon", "Ole Miss")]:
+    for team_a, team_b in [("Duke", "Houston"), ("Alabama", "Florida"), ("Michigan", "Arizona")]:
         prob_a = predict_matchup(model, scaler, team_a, team_b)
         prob_b = predict_matchup(model, scaler, team_b, team_a)
         assert abs(prob_a + prob_b - 1.0) < 1e-6, (
             f"Probabilities don't sum to 1: {prob_a} + {prob_b} = {prob_a + prob_b}"
         )
+
+
+def test_name_normalization():
+    """Team name normalization handles common KenPom variations."""
+    assert normalize_team_name("Connecticut") == "UConn"
+    assert normalize_team_name("Michigan St.") == "Michigan State"
+    assert normalize_team_name("Saint John's") == "St. John's"
+    assert normalize_team_name("Gonzaga Bulldogs") == "Gonzaga"
+    assert normalize_team_name("Miami (FL)") == "Miami FL"
+    assert normalize_team_name("Miami (OH)") == "Miami OH"
+    assert normalize_team_name("Iowa St.") == "Iowa State"
+    assert normalize_team_name("North Carolina State") == "NC State"
+    assert normalize_team_name("Long Island") == "LIU"
+
+
+def test_name_close_matches():
+    """Close match finder returns sensible suggestions."""
+    matches = find_close_matches("Mich State", n=3)
+    canonical_names = [m[1] for m in matches]
+    assert "Michigan State" in canonical_names or "Michigan" in canonical_names
 
 
 def test_power_rankings_order():
@@ -215,11 +238,11 @@ def test_power_rankings_order():
     overlap = set(top4_teams) & set(one_seeds)
     assert len(overlap) >= 3, f"Expected at least 3 of top 4 to be 1 seeds, got {overlap}"
 
-    # Bottom 4 should be 16 seeds
-    bottom4_teams = [t for t, _ in rankings[-4:]]
+    # Bottom 6 should include 16 seeds (there are 6 sixteen-seeds with First Four)
+    bottom6_teams = [t for t, _ in rankings[-6:]]
     sixteen_seeds = [t for t, s in TOURNAMENT_TEAMS.items() if s["seed"] == 16]
-    overlap = set(bottom4_teams) & set(sixteen_seeds)
-    assert len(overlap) >= 3, f"Expected at least 3 of bottom 4 to be 16 seeds, got {overlap}"
+    overlap = set(bottom6_teams) & set(sixteen_seeds)
+    assert len(overlap) >= 4, f"Expected at least 4 of bottom 6 to be 16 seeds, got {overlap}"
 
 
 def run_all_tests():
@@ -240,6 +263,8 @@ def run_all_tests():
         test_close_matchups_near_50_50,
         test_probabilities_sum_to_one,
         test_power_rankings_order,
+        test_name_normalization,
+        test_name_close_matches,
     ]
 
     passed = 0

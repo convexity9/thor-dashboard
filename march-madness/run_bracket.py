@@ -26,7 +26,8 @@ from sklearn.preprocessing import StandardScaler
 
 # Allow importing from same directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from team_data import HISTORICAL_MATCHUPS
+from team_data import HISTORICAL_MATCHUPS, FIRST_FOUR
+from team_names import normalize_team_name, find_close_matches
 from model import (
     compute_matchup_features,
     compute_team_features,
@@ -93,8 +94,15 @@ def load_teams_from_csv(csv_path):
         "opp_oreb_pct": 27.0, "opp_ft_rate": 0.31,
     }
 
+    normalized_count = 0
+    unmatched = []
+
     for _, row in df.iterrows():
-        team_name = str(row[col_map["team"]]).strip()
+        raw_name = str(row[col_map["team"]]).strip()
+        team_name = normalize_team_name(raw_name)
+        if team_name != raw_name:
+            normalized_count += 1
+
         team_stats = {}
 
         for standard_name in col_aliases:
@@ -133,6 +141,26 @@ def load_teams_from_csv(csv_path):
         team_stats["seed"] = int(team_stats["seed"])
 
         teams[team_name] = team_stats
+
+    if normalized_count > 0:
+        print(f"  Normalized {normalized_count} team name(s) to match bracket format.")
+
+    # Check for bracket teams not found in CSV
+    from team_data import TOURNAMENT_TEAMS
+    bracket_teams = set(TOURNAMENT_TEAMS.keys())
+    csv_teams = set(teams.keys())
+    missing_from_csv = bracket_teams - csv_teams
+    if missing_from_csv and len(teams) >= 30:
+        # Only warn if this looks like a full bracket CSV
+        print(f"\n  WARNING: {len(missing_from_csv)} bracket team(s) not found in CSV:")
+        for m in sorted(missing_from_csv)[:10]:
+            suggestions = find_close_matches(m, n=2)
+            hint = ""
+            if suggestions:
+                hint = f" (did you mean: {', '.join(s[0] for s in suggestions)}?)"
+            print(f"    - {m}{hint}")
+        if len(missing_from_csv) > 10:
+            print(f"    ... and {len(missing_from_csv) - 10} more")
 
     return teams
 
@@ -225,20 +253,64 @@ def generate_all_matchups(model, scaler, teams):
     return matchups
 
 
+def resolve_first_four(model, scaler, teams):
+    """Simulate First Four games and return results + updated region rosters."""
+    results = []
+    # Determine which First Four matchups exist in our team data
+    for ff in FIRST_FOUR:
+        if ff["team_a"] in teams and ff["team_b"] in teams:
+            team_a, team_b = ff["team_a"], ff["team_b"]
+            prob_a = get_matchup_prob(model, scaler, teams, team_a, team_b)
+            winner = team_a if prob_a > 0.5 else team_b
+            loser = team_b if prob_a > 0.5 else team_a
+            win_pct = prob_a if prob_a > 0.5 else 1 - prob_a
+            results.append({
+                "Round": "First Four",
+                "Region": ff["region"],
+                "Team A": team_a,
+                "Seed A": ff["seed"],
+                "Team B": team_b,
+                "Seed B": ff["seed"],
+                "Winner": winner,
+                "Winner Seed": ff["seed"],
+                "Win Probability": round(win_pct * 100, 1),
+                "Upset": "",
+            })
+            # Remove the loser from the teams dict for bracket purposes
+            # (don't mutate original — caller should handle)
+            yield loser, results[-1]
+
+
 def simulate_bracket(model, scaler, teams):
-    """Simulate the full bracket, returning round-by-round results."""
+    """Simulate the full 68-team bracket with First Four, returning round-by-round results."""
+    results = []
+
+    # 1) Resolve First Four games
+    bracket_teams = dict(teams)  # copy so we don't mutate
+    first_four_losers = []
+    for loser, ff_result in resolve_first_four(model, scaler, bracket_teams):
+        results.append(ff_result)
+        first_four_losers.append(loser)
+
+    # Remove First Four losers
+    for loser in first_four_losers:
+        if loser in bracket_teams:
+            del bracket_teams[loser]
+
+    # 2) Build region rosters (should be 16 per region now)
     regions = {}
-    for team, stats in teams.items():
+    for team, stats in bracket_teams.items():
         region = stats["region"]
         if region not in regions:
             regions[region] = []
         regions[region].append((int(stats["seed"]), team))
 
     for region in regions:
-        regions[region].sort(key=lambda x: x[0])
+        regions[region].sort(key=lambda x: (x[0], x[1]))
 
-    bracket_order = [(0, 15), (7, 8), (4, 11), (3, 12), (5, 10), (2, 13), (6, 9), (1, 14)]
-    results = []
+    # Standard bracket: seeds 1-16, positions mapped by seed
+    # 1v16, 8v9, 5v12, 4v13, 6v11, 3v14, 7v10, 2v15
+    seed_matchups = [(1,16), (8,9), (5,12), (4,13), (6,11), (3,14), (7,10), (2,15)]
 
     final_four = []
     for region_name in ["South", "West", "East", "Midwest"]:
@@ -246,14 +318,19 @@ def simulate_bracket(model, scaler, teams):
             continue
         region_teams = regions[region_name]
 
+        # Build seed->team lookup
+        seed_to_team = {}
+        for seed, team in region_teams:
+            seed_to_team[seed] = team  # last one wins if duplicates remain
+
         # Round of 64
         round_winners = []
-        for idx_a, idx_b in bracket_order:
-            if idx_a >= len(region_teams) or idx_b >= len(region_teams):
+        for seed_a, seed_b in seed_matchups:
+            if seed_a not in seed_to_team or seed_b not in seed_to_team:
                 continue
-            seed_a, team_a = region_teams[idx_a]
-            seed_b, team_b = region_teams[idx_b]
-            prob_a = get_matchup_prob(model, scaler, teams, team_a, team_b)
+            team_a = seed_to_team[seed_a]
+            team_b = seed_to_team[seed_b]
+            prob_a = get_matchup_prob(model, scaler, bracket_teams, team_a, team_b)
             winner = team_a if prob_a > 0.5 else team_b
             winner_seed = seed_a if prob_a > 0.5 else seed_b
             win_pct = prob_a if prob_a > 0.5 else 1 - prob_a
@@ -276,7 +353,7 @@ def simulate_bracket(model, scaler, teams):
         for i in range(0, len(round_winners), 2):
             seed_a, team_a = round_winners[i]
             seed_b, team_b = round_winners[i + 1]
-            prob_a = get_matchup_prob(model, scaler, teams, team_a, team_b)
+            prob_a = get_matchup_prob(model, scaler, bracket_teams, team_a, team_b)
             winner = team_a if prob_a > 0.5 else team_b
             winner_seed = seed_a if prob_a > 0.5 else seed_b
             win_pct = prob_a if prob_a > 0.5 else 1 - prob_a
@@ -295,7 +372,7 @@ def simulate_bracket(model, scaler, teams):
         for i in range(0, len(sweet16), 2):
             seed_a, team_a = sweet16[i]
             seed_b, team_b = sweet16[i + 1]
-            prob_a = get_matchup_prob(model, scaler, teams, team_a, team_b)
+            prob_a = get_matchup_prob(model, scaler, bracket_teams, team_a, team_b)
             winner = team_a if prob_a > 0.5 else team_b
             winner_seed = seed_a if prob_a > 0.5 else seed_b
             win_pct = prob_a if prob_a > 0.5 else 1 - prob_a
@@ -313,7 +390,7 @@ def simulate_bracket(model, scaler, teams):
         if len(elite8) >= 2:
             seed_a, team_a = elite8[0]
             seed_b, team_b = elite8[1]
-            prob_a = get_matchup_prob(model, scaler, teams, team_a, team_b)
+            prob_a = get_matchup_prob(model, scaler, bracket_teams, team_a, team_b)
             winner = team_a if prob_a > 0.5 else team_b
             winner_seed = seed_a if prob_a > 0.5 else seed_b
             win_pct = prob_a if prob_a > 0.5 else 1 - prob_a
@@ -331,7 +408,7 @@ def simulate_bracket(model, scaler, teams):
     if len(final_four) >= 4:
         # Semi 1: South vs West
         s1a, s1b = final_four[0], final_four[1]
-        prob = get_matchup_prob(model, scaler, teams, s1a[1], s1b[1])
+        prob = get_matchup_prob(model, scaler, bracket_teams, s1a[1], s1b[1])
         w1 = s1a if prob > 0.5 else s1b
         wp1 = prob if prob > 0.5 else 1 - prob
         results.append({
@@ -344,7 +421,7 @@ def simulate_bracket(model, scaler, teams):
 
         # Semi 2: East vs Midwest
         s2a, s2b = final_four[2], final_four[3]
-        prob = get_matchup_prob(model, scaler, teams, s2a[1], s2b[1])
+        prob = get_matchup_prob(model, scaler, bracket_teams, s2a[1], s2b[1])
         w2 = s2a if prob > 0.5 else s2b
         wp2 = prob if prob > 0.5 else 1 - prob
         results.append({
@@ -356,7 +433,7 @@ def simulate_bracket(model, scaler, teams):
         })
 
         # Championship
-        prob = get_matchup_prob(model, scaler, teams, w1[1], w2[1])
+        prob = get_matchup_prob(model, scaler, bracket_teams, w1[1], w2[1])
         champ = w1 if prob > 0.5 else w2
         wp_champ = prob if prob > 0.5 else 1 - prob
         results.append({
